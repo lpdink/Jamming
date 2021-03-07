@@ -1,5 +1,6 @@
 import threading, time
 import numpy as np
+import math
 
 import global_var, settings
 from threads.nl import NoiseLib
@@ -50,10 +51,48 @@ class ActiveNoiseControl(threading.Thread):
         self.join()
 
     def envelope(self, frames, chirp):
-        pass
+        # 包络检测模块。会将frames分段与chirp信号进行卷积
+        # frames：输入原始信号
+        # chirp：用于解调原始信号的卷积信号
+        # res：返回的卷积结果
+        N1=len(frames)
+        N2=len(chirp)
+        
+        res=[]
+        i=0
+        while i<N1:
+            N=min(N2,N1-i)
+            frames_freq=np.fft.fft(frames[i:i+N])
+            chirp_freq=np.fft.fft(chirp[0:N])
+            tmp=frames_freq*chirp_freq
+            tmp=np.zeros((1,math.floor(N/2)+1))+tmp[math.floor(N/2):N]*2
+            res=res+abs(np.fft.ifft(tmp))
+
+            i=i+N2
+
+        return res
 
     def find_max(self, frames):
-        pass
+        # 若Clip中有一个最大值点，则输出其下标。若有两个值大小差距在阈值(0.3)以内的最大值点，则输出其下标的中位点
+        # frames：需要检测最大值点的输入声音片段
+        # max_index：返回的最大值点下标
+        first_max_index=0
+        for i in range(1,len(frames)):
+            if frames[i]>frames[first_max_index]:
+                first_max_index=i
+        
+        second_max_index=0
+        for i in range(1,len(frames)):
+            if frames[i]>frames[second_max_index] and i!=first_max_index:
+                second_max_index=i
+
+        threshold=0.3
+        if frames[first_max_index]/frames[second_max_index]<=1+threshold:
+            max_index=math.floor((first_max_index+second_max_index)/2)
+        else:
+            max_index=first_max_index
+        
+        return max_index
 
     def channel_simulation(self, reality_frames, ideal_frames):
         pass
