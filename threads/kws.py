@@ -1,14 +1,16 @@
-import threading
+import threading, logging
 import global_var
+import numpy as np
 
 
 class KeywordSpotting(threading.Thread):
     def __init__(self, in_fs, out_fs, mute_period_frames_count):
         threading.Thread.__init__(self)
+        self.daemon = True
         self.in_fs = in_fs
         self.out_fs = out_fs
         self.mute_period_frames_count = mute_period_frames_count
-        self.kws_frames_count = 100  # 暂定，根据实际情况进行改变
+        self.kws_frames_count = 500  # 暂定，根据实际情况进行改变
         self.exit_flag = False
 
         self.start()
@@ -16,15 +18,15 @@ class KeywordSpotting(threading.Thread):
     def run(self):
         while not self.exit_flag:
             # 1.从raw_input池中读取一定长度的数据。该过程可能会被阻塞，直到池中放入了足够本次读取的数据
-            processed_input_frames = global_var.raw_input_pool.get(
-                self.kws_frames_count)
+            processed_input_frames = global_var.processed_input_pool.get(
+                int(self.kws_frames_count))
 
             # 2.如果keyword spotting检测出该数据段中存在关键字，则对该数据进行重采样，填充后，存入keyword池
             if self.kws(processed_input_frames):
                 global_var.keyword_pool.put(
                     self.padding(
                         self.resampling(processed_input_frames, self.in_fs,
-                                         self.out_fs), 0,
+                                        self.out_fs), 0,
                         self.mute_period_frames_count))
 
     def stop(self):
@@ -32,13 +34,15 @@ class KeywordSpotting(threading.Thread):
         self.join()
 
     def kws(self, frames):
-        pass
+        logging.info("System Clock-{}(s)-Keyword spooting success".format(
+            round(global_var.run_time, 2)))
+        return True
 
     def resampling(self, frames, current_fs, target_fs):
-        pass
+        return np.array([])
 
     def padding(self, frames, padding_value, padding_num):
-        pass
+        return np.random.rand(1000)
 
 
 # class ASRManager(object):

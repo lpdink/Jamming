@@ -1,39 +1,42 @@
-# from utils.cycle_pool import CyclePool
-# from utils.non_cycle_pool import NonCyclePool
+from utils.pool import *
 
-# import numpy as np
-
-# a = NonCyclePool(100)
-
-# for i in range(1, 2):
-#     a.put(np.random.rand(i))
-#     for j in range(1, 100, 1):
-#         if a.get(j).size != j:
-#             print(a.size(), "get", j)
-
-
-# print(a.index)
-
-# print(a.get(20).size)
-# print(a.index)
-
+import numpy as np
 import threading,time
 
+def run():
+    a = PoolBlockGet()
+    b = PoolBlockPut()
+    class ThreadA(threading.Thread):
+        def __init__(self):
+            threading.Thread.__init__(self)
 
-class A(threading.Thread):
-    def __init__(self):
-        threading.Thread.__init__(self)
-        self.lock = threading.Lock()
-        self.start()
+        def run(self):
+            for i in range(15):
+                time.sleep(1)
+                a.put(np.random.rand(100))
+                print("A put")
 
-    def run(self):
-        if self.lock.locked():
-            self.lock.release()
-        while True:
-            print("*")
-            time.sleep(1)
+       
 
-a = A()
+    class ThreadB(threading.Thread):
+        def __init__(self):
+            threading.Thread.__init__(self)
+
+        def run(self):
+            for i in range(2):
+                tmp = a.get(500)
+                print("B get",type(tmp))
 
 
+    p = ThreadA()
+    g = ThreadB()
+    p.daemon = True
+    g.daemon = True
 
+    p.start()
+    g.start()
+
+    tmp = input("")
+    # p.stop()
+    # g.stop()
+   

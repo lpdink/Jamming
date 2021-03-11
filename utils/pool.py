@@ -1,27 +1,21 @@
 import threading
 import numpy as np
+from threading import Condition
 
 
 class PoolBase(object):
     def __init__(self):
-        self.rw_mutex = threading.Lock()  # 读写互斥锁
-
         self.frames = np.array([])
 
     # 获取全部数据
     def get_all(self):
-        self.rw_mutex.acquire()
         re = self.frames.copy()
         self.frames = np.array([])
-        self.rw_mutex.release()
-
         return re
 
     # 清空pool
     def clear(self):
-        self.rw_mutex.acquire()
         self.frames = np.array([])
-        self.rw_mutex.release()
 
     # 判断pool是否为空
     def is_empty(self):
@@ -38,8 +32,8 @@ class PoolBase(object):
 class PoolBlockGet(PoolBase):
     def __init__(self):
         super(PoolBlockGet, self).__init__()
-        self.pv_mutex = threading.Lock()  # 用于线程之间的互斥访问
-        self.needed_frames_count = 0  # 读取所需数据帧数
+        self.condition = threading.Condition()  # 用于实现线程通信
+        self.needed_frames_count = np.inf  # 读取所需数据帧数，预估第一次放入后池子不够读取
 
     # 将数据放入池子。若池子中有足够数据，则释放被阻塞线程
     def put(self, data):
@@ -52,13 +46,11 @@ class PoolBlockGet(PoolBase):
         if data.ndim != 1:
             raise TypeError("Input audio clip must be 1D!")
 
-        self.rw_mutex.acquire()
+        self.condition.acquire()
         self.frames = np.append(self.frames, data)
-        self.rw_mutex.release()
-
-        if self.frames.size >= self.needed_frames_count and self.pv_mutex.locked(
-        ):
-            self.pv_mutex.release()
+        if self.frames.size >= self.needed_frames_count:
+            self.condition.notify_all()
+        self.condition.release()
 
     # 若要求数量大于库存，则阻塞当前线程。否则非循环读取池子中数据
     def get(self, frame_count):
@@ -68,23 +60,27 @@ class PoolBlockGet(PoolBase):
         if not isinstance(frame_count, int):
             raise ValueError("Input frame count must be integer!")
 
-        total_frame_count = self.frames.size
-        if frame_count > total_frame_count:  # 所需帧数大于总量，则让调用该方法线程进入等待队列，直到存在足够多数据
+        self.condition.acquire()
+        if frame_count > self.frames.size:  # 所需帧数大于总量，则让调用该方法线程进入等待队列，直到存在足够多数据
             self.needed_frames_count = frame_count
-            self.pv_mutex.acquire()
+            self.condition.wait()
 
-        self.rw_mutex.acquire()
         re = self.frames[0:frame_count].copy()
         self.frames = np.delete(self.frames, range(0, frame_count))
-        self.rw_mutex.release()
+        self.condition.release()
 
         return re
+
+    def release(self):
+        self.condition.acquire()
+        self.condition.notify_all()
+        self.condition.release()
 
 
 class PoolBlockPut(PoolBase):
     def __init__(self):
         super(PoolBlockPut, self).__init__()
-        self.pv_mutex = threading.Lock()  # 用于线程之间的互斥访问
+        self.condition = threading.Condition()  # 用于实现线程通信
         self.needed_frames_count = np.inf  # 下一次读取所需数据帧数
 
     # 若池子中有足够数据，则阻塞当前线程，否则将数据放入池子
@@ -98,12 +94,11 @@ class PoolBlockPut(PoolBase):
         if data.ndim != 1:
             raise TypeError("Input audio clip must be 1D!")
 
+        self.condition.acquire()
         if self.frames.size >= self.needed_frames_count:
-            self.pv_mutex.acquire()
-
-        self.rw_mutex.acquire()
+            self.condition.wait()
         self.frames = np.append(self.frames, data)
-        self.rw_mutex.release()
+        self.condition.release()
 
     # 非循环读取池子中数据。若取后剩余数据小于所需数量，则释放被阻塞线程
     def get(self, frame_count):
@@ -113,22 +108,30 @@ class PoolBlockPut(PoolBase):
         if not isinstance(frame_count, int):
             raise ValueError("Input frame count must be integer!")
 
-        self.rw_mutex.acquire()
+        if frame_count > self.frames.size:
+            frame_count = self.frames.size
+            print("Warning:IO is going to be close!")
+
+        self.condition.acquire()
         re = self.frames[0:frame_count].copy()
         self.frames = np.delete(self.frames, range(0, frame_count))
-        self.rw_mutex.release()
-
         self.needed_frames_count = frame_count
-        if self.frames.size < self.needed_frames_count and self.pv_mutex.locked(
-        ):  # 取后剩余数据不够下一次读取，释放被阻塞线程，让其继续生产数据
-            self.pv_mutex.release()
+        if self.frames.size < self.needed_frames_count:  # 取后剩余数据不够下一次读取，释放被阻塞线程，让其继续生产数据
+            self.condition.notify_all()
+        self.condition.release()
 
         return re
+
+    def release(self):
+        self.condition.acquire()
+        self.condition.notify_all()
+        self.condition.release()
 
 
 class PoolNoBlock(PoolBase):
     def __init__(self):
         super(PoolNoBlock, self).__init__()
+        self.rw_mutex = threading.Lock()  # 读写互斥锁
 
     # 将数据放入池子
     def put(self, data):
