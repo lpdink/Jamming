@@ -18,8 +18,8 @@ def run():
     logging.info("Start jamming programmer")
     nl_thread = NoiseLib(settings.OUT_FS, settings.NOISE_LENGTH,
                          settings.CHIRP_LENGTH)
-    io_thread = InputOutPut(settings.INPUT_FORMAT, settings.INPUT_CHANNEL,
-                            settings.IN_FS, settings.OUTPUT_FORMAT,
+    io_thread = InputOutPut(settings.INPUT_BIT_DEPTH, settings.INPUT_CHANNEL,
+                            settings.IN_FS, settings.OUTPUT_BIT_DEPTH,
                             settings.OUTPUT_CHANNEL, settings.OUT_FS,
                             settings.FRAMES_PER_BUFFER)
     anc_thread = ActiveNoiseControl(

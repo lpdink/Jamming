@@ -21,6 +21,14 @@ class ActiveNoiseControl(threading.Thread):
         self.start()
 
     def run(self):
+        # Test
+        self.rfs1 = np.array([])
+        self.ifs1 = np.array([])
+        self.rfs2 = np.array([])
+        self.ifs2 = np.array([])
+        self.flag1 = True
+        self.flag2 = True
+
         while not self.exit_flag:
             # 1.从raw_input池中读取与chirp加noise等长的数据。该过程可能会被阻塞，直到池中放入了足够本次读取的数据
             current_input_frames = global_var.raw_input_pool.get(
@@ -56,6 +64,21 @@ class ActiveNoiseControl(threading.Thread):
                         joined_input_frames,
                         self._resample(NoiseLib.get_chirp_noise(),
                                        self.output_fs, self.input_fs)))
+
+                # Test
+                if self.flag1:
+                    print("Save data for simulation")
+                    self._save_data(self.rfs1,"./waves/reality_frames_for_simulation.npy")
+                    self._save_data(self.ifs1,"./waves/ideal_frames_for_simulation.npy")
+                    self.flag1 = False
+
+            # Test
+            if global_var.run_time >= 30 and self.flag2:
+                print("Save data for eliminate")
+                self._save_data(self.rfs2,"./waves/reality_frames_for_eliminate.npy")
+                self._save_data(self.ifs2,"./waves/ideal_frames_for_eliminate.npy")
+                self.flag2 = False
+
 
     def stop(self):
         self.exit_flag = True
@@ -111,11 +134,18 @@ class ActiveNoiseControl(threading.Thread):
     def channel_simulation(self, reality_frames, ideal_frames):
         logging.info("System Clock-{}(s)-Channel simulation".format(
             round(global_var.run_time, 2)))
+        self.rfs1 = np.concatenate((self.rfs1,reality_frames))
+        self.ifs1 = np.concatenate((self.ifs1,ideal_frames))
 
     def eliminate_noise(self, reality_frames, ideal_frames):
         logging.info("System Clock-{}(s)-Eliminate noise".format(
             round(global_var.run_time, 2)))
+        self.rfs2 = np.concatenate((self.rfs2,reality_frames))
+        self.ifs2 = np.concatenate((self.ifs2,ideal_frames))
         return np.random.rand(1000)
 
     def _resample(self, frames, src_fs, dst_fs):
         return signal.resample(frames, int(frames.size / src_fs * dst_fs))
+
+    def _save_data(self,data,save_fillname):
+        np.save(save_fillname,data)

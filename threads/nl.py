@@ -97,7 +97,7 @@ class NoiseLib(threading.Thread):
             bytes_buffer = wf.readframes(nframes)  # 一次性读取所有frame
 
             audio_clip = Codec.decode_bytes_to_audio(bytes_buffer, nchannels,
-                                                     pyaudio.paInt16)
+                                                     sampwidth*8)
 
             audio_clip = signal.resample(
                 audio_clip, int(self.out_fs / framerate * nframes))

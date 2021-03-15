@@ -6,7 +6,7 @@ import numpy as np
 class Codec():
     # 将bytes类型的字节流转换为归一化的float ndarray
     @staticmethod
-    def decode_bytes_to_audio(bytes_buffer, input_channel, input_format):
+    def decode_bytes_to_audio(bytes_buffer, input_channel, input_bit_depth):
         # 检查
         if not isinstance(bytes_buffer, bytes):
             logging.error("Input buffer must be bytes!")
@@ -16,13 +16,13 @@ class Codec():
             raise ValueError("Input channel must be 1 or 2!")
 
         # 根据输入类型确定split步长
-        if input_format == pyaudio.paInt16:
+        if input_bit_depth == 16:
             split_step = 2 * input_channel
             max_value = 2**15
-        elif input_format == pyaudio.paInt24:
+        elif input_bit_depth == 24:
             split_step = 3 * input_channel
             max_value = 2**23
-        elif input_format == pyaudio.paInt32:
+        elif input_bit_depth == 32:
             split_step = 4 * input_channel
             max_value = 2**31
 
@@ -71,7 +71,7 @@ class Codec():
 
     # 将float类型的ndarray根据扬声器采样深度编码为可以发送的bytes
     @staticmethod
-    def encode_audio_to_bytes(audio_clip, output_channel, output_format):
+    def encode_audio_to_bytes(audio_clip, output_channel, output_bit_depth):
         if output_channel not in (1, 2):
             raise ValueError("Input channel must be 1 or 2!")
 
@@ -108,15 +108,15 @@ class Codec():
             audio_clip = np.array(audio_clip)
 
         # 根据扬声器采样深度进行转化
-        if output_format == pyaudio.paInt16:
+        if output_bit_depth == 16:
             re = (audio_clip * 2**15).clip(-2**15, 2**15 - 1).astype(
                 np.int16).tobytes()
-        elif output_format == pyaudio.paInt24:
+        elif output_bit_depth == 24:
             re = b""
             for i in range(audio_clip.size):
                 tmp = int((audio_clip[i] * 2**23).clip(-2**23, 2**23 - 1))
                 re += tmp.to_bytes(3, byteorder='little', signed=True)
-        elif output_format == pyaudio.paInt32:
+        elif output_bit_depth == 32:
             re = (audio_clip * 2**31).clip(-2**31, 2**31 - 1).astype(
                 np.int32).tobytes()
         else:

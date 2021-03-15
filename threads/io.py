@@ -9,12 +9,12 @@ from utils.modulate import Modulate
 
 
 class InputOutPut():
-    def __init__(self, input_format, input_channel, input_fs, output_format,
+    def __init__(self, input_bit_depth, input_channel, input_fs, output_bit_depth,
                  output_channel, output_fs, frames_per_buffer):
-        InputOutPut.input_format = input_format
+        InputOutPut.input_bit_depth = input_bit_depth
         InputOutPut.input_channel = input_channel
         InputOutPut.input_fs = input_fs
-        InputOutPut.output_format = output_format
+        InputOutPut.output_bit_depth = output_bit_depth
         InputOutPut.output_channel = output_channel
         InputOutPut.output_fs = output_fs
         InputOutPut.frames_per_buffer = frames_per_buffer
@@ -24,7 +24,7 @@ class InputOutPut():
         self.pa = pyaudio.PyAudio()
         try:
             self.stream = self.pa.open(
-                format=InputOutPut.input_format,
+                format=self.pa.get_format_from_width(InputOutPut.input_bit_depth//8),
                 channels=InputOutPut.input_channel,
                 rate=InputOutPut.input_fs,
                 input=True,
@@ -35,7 +35,7 @@ class InputOutPut():
             logging.warning("No input device detected!")
         try:
             self.stream = self.pa.open(
-                format=InputOutPut.output_format,
+                format=self.pa.get_format_from_width(InputOutPut.output_bit_depth//8),
                 channels=InputOutPut.output_channel,
                 rate=InputOutPut.output_fs,
                 input=False,
@@ -60,7 +60,7 @@ class InputOutPut():
     def read_audio(in_data, frame_count, time_info, status):
         # 1.将bytes流输入转换为[-1,1]的浮点数一维数组
         raw_input_frames = Codec.decode_bytes_to_audio(
-            in_data, InputOutPut.input_channel, InputOutPut.input_format)
+            in_data, InputOutPut.input_channel, InputOutPut.input_bit_depth)
         # 2.数据存入raw_input池，此过程不会被阻塞
         global_var.raw_input_pool.put(raw_input_frames)
         # 3.更新系统时间
@@ -88,6 +88,6 @@ class InputOutPut():
         # 4.将[-1,1]的浮点数一维数组转换为bytes流输出
         out_data = Codec.encode_audio_to_bytes(modulated_output_frames,
                                                InputOutPut.output_channel,
-                                               InputOutPut.output_format)
+                                               InputOutPut.output_bit_depth)
 
         return (out_data, pyaudio.paContinue)
