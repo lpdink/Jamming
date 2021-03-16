@@ -43,7 +43,7 @@ class Modulate():
             re = re_left + re_right
             return cls.amplitude * re / 2
         else:
-            return (cls.amplitude * re_left, cls.amplitude * re_right)
+            return cls.amplitude * re_left, cls.amplitude * re_right
 
     @classmethod
     def pm_modulate(cls, audio_clip):
@@ -72,4 +72,53 @@ class Modulate():
         # 右声道部分信号生成
         re_right = np.sin(2 * np.pi * cls.f_s * t)
 
-        return (cls.amplitude * re_left, cls.amplitude * re_right)
+        return cls.amplitude * re_left, cls.amplitude * re_right
+
+    @classmethod
+    def get_leakage(cls, f_sequence_array):
+        size = 2 * f_sequence_array.shape[1] - 1
+        res = np.zeros(size, dtype=np.complexfloating)
+        for x in f_sequence_array:
+            print(np.convolve(x, x))
+            res += np.convolve(x, x)
+        res = np.abs(res)
+        res **= 2
+        return res.sum()
+
+    @classmethod
+    def split(cls, f_sequence, split_points):
+        f_sequence_array = np.array([])
+        size = f_sequence.shape
+        pre_point = 0
+        for point in split_points:
+            now_f_sequence = [0] * pre_point
+            now_f_sequence.extend(f_sequence_array[pre_point + 1, split_points])
+            now_f_sequence.extend([0] * size - split_points)
+            np.append(f_sequence_array, now_f_sequence)
+            pre_point = point
+        return f_sequence_array
+
+    @classmethod
+    def split_normal(cls, f_sequence):
+        return []
+
+    @classmethod
+    def get_array(cls, audio_clip):
+        t = np.linspace(0,
+                        audio_clip.size / settings.OUT_FS,
+                        num=audio_clip.size)
+        carry = np.sin(2 * np.pi * cls.f_c * t)
+
+        # 左声道部分信号生成
+        re_left = carry * audio_clip  # *为星乘，@为点乘
+
+        f_sequence = np.fft.fft(re_left)
+
+        tmp_array = cls.split_normal(f_sequence)
+
+        output_array = np.array([])
+        for now_f_sequence in tmp_array:
+            np.append(output_array, np.fft.ifft(now_f_sequence))
+
+        np.append(output_array, carry)
+        return output_array
