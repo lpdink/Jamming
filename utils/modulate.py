@@ -5,7 +5,7 @@ import settings
 
 
 class Modulate():
-    f_c = 24000  # 载波频率
+    f_c = 40000  # 载波频率
     f_s = 50000  # 载波频率
     amplitude = 1  # 归一化幅度
 

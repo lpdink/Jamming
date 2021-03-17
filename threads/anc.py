@@ -68,15 +68,15 @@ class ActiveNoiseControl(threading.Thread):
                 # Test
                 if self.flag1:
                     print("Save data for simulation")
-                    self._save_data(self.rfs1,"./waves/reality_frames_for_simulation.npy")
-                    self._save_data(self.ifs1,"./waves/ideal_frames_for_simulation.npy")
+                    self._save_data(self.rfs1,"./waves/train_x.npy")
+                    self._save_data(self.ifs1,"./waves/train_y.npy")
                     self.flag1 = False
 
             # Test
-            if global_var.run_time >= 30 and self.flag2:
+            if global_var.run_time >= 20 and self.flag2:
                 print("Save data for eliminate")
-                self._save_data(self.rfs2,"./waves/reality_frames_for_eliminate.npy")
-                self._save_data(self.ifs2,"./waves/ideal_frames_for_eliminate.npy")
+                self._save_data(self.rfs2,"./waves/test_x.npy")
+                self._save_data(self.ifs2,"./waves/test_y.npy")
                 self.flag2 = False
 
 

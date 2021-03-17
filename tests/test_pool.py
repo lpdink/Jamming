@@ -31,6 +31,10 @@ def run():
     p = ThreadA()
     g = ThreadB()
     p.daemon = True
+
+
+
+    
     g.daemon = True
 
     p.start()

@@ -30,10 +30,10 @@ class PoolBase(object):
 
 
 class PoolBlockGet(PoolBase):
-    def __init__(self):
+    def __init__(self, needed_frames_count):
         super(PoolBlockGet, self).__init__()
         self.condition = threading.Condition()  # 用于实现线程通信
-        self.needed_frames_count = np.inf  # 读取所需数据帧数，预估第一次放入后池子不够读取
+        self.needed_frames_count = needed_frames_count  # 读取所需数据帧数
 
     # 将数据放入池子。若池子中有足够数据，则释放被阻塞线程
     def put(self, data):
@@ -78,10 +78,10 @@ class PoolBlockGet(PoolBase):
 
 
 class PoolBlockPut(PoolBase):
-    def __init__(self):
+    def __init__(self, needed_frames_count):
         super(PoolBlockPut, self).__init__()
         self.condition = threading.Condition()  # 用于实现线程通信
-        self.needed_frames_count = np.inf  # 下一次读取所需数据帧数
+        self.needed_frames_count = needed_frames_count  # 下一次读取所需数据帧数
 
     # 若池子中有足够数据，则阻塞当前线程，否则将数据放入池子
     def put(self, data):

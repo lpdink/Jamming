@@ -4,13 +4,14 @@ import numpy as np
 
 
 class KeywordSpotting(threading.Thread):
-    def __init__(self, in_fs, out_fs, mute_period_frames_count):
+    def __init__(self, in_fs, out_fs, mute_period_frames_count,
+                 kws_frame_length):
         threading.Thread.__init__(self)
         self.daemon = True
         self.in_fs = in_fs
         self.out_fs = out_fs
         self.mute_period_frames_count = mute_period_frames_count
-        self.kws_frames_count = 500  # 暂定，根据实际情况进行改变
+        self.kws_frames_count = in_fs * kws_frame_length
         self.exit_flag = False
 
         self.start()
@@ -34,9 +35,9 @@ class KeywordSpotting(threading.Thread):
         self.join()
 
     def kws(self, frames):
-        logging.info("System Clock-{}(s)-Keyword spooting success".format(
-            round(global_var.run_time, 2)))
-        return True
+        # logging.info("System Clock-{}(s)-Keyword spooting success".format(
+        #     round(global_var.run_time, 2)))
+        return False
 
     def resampling(self, frames, current_fs, target_fs):
         return np.array([])

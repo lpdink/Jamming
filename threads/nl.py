@@ -19,7 +19,7 @@ class NoiseLib(threading.Thread):
         self.chirp_length = chirp_length
         self.f_lower_bound = 100  # 噪声频率下界
         self.f_upper_bound = 1000  # 噪声频率上界
-        self.num_of_base = 5  # 噪声基底个数
+        self.num_of_base = 10  # 噪声基底个数
         self.f1 = 100
         self.f2 = 1e4
         self.exit_flag = False  # 线程退出标志
@@ -41,8 +41,8 @@ class NoiseLib(threading.Thread):
                 (NoiseLib.up_chirp_frames, NoiseLib.noise_frames))
 
             # 2.chirp和噪声存入noise池。该过程可能会被阻塞，直到池中数据不够下一次由另外一线程读取
-            # global_var.noise_pool.put(chirp_noise_frames)
-            global_var.noise_pool.put(self.test_wave[-1])  # Test
+            global_var.noise_pool.put(chirp_noise_frames)
+            # global_var.noise_pool.put(self.test_wave[-1])  # Test
 
     def stop(self):
         self.exit_flag = True
@@ -52,11 +52,12 @@ class NoiseLib(threading.Thread):
     def generate_noise(self):
         noise_frames_count = math.floor(self.out_fs * self.noise_length)
         random_factor = np.random.rand(self.num_of_base)
+        # print(random_factor)
         # random_factor = np.ones((self.num_of_base))  # Test
         w_bases = np.linspace(self.f_lower_bound, self.f_upper_bound,
                               self.num_of_base)
         t = np.linspace(0, self.noise_length, num=noise_frames_count)
-        random_noise = np.zeros(shape=(noise_frames_count))
+        random_noise = np.zeros(shape=noise_frames_count)
         for i in range(self.num_of_base):
             random_noise += random_factor[i] * np.sin(
                 2 * np.pi * w_bases[i] * t)

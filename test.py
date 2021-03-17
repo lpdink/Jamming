@@ -1,3 +1,3 @@
-from tests.test_pool import *
+from tests.test_npy import *
 
 run()
