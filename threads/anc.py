@@ -101,8 +101,8 @@ class ActiveNoiseControl(threading.Thread):
             chirp_freq = np.fft.fft(chirp[0:N])
             tmp = frames_freq * chirp_freq
             tmp = list(np.zeros(
-                (math.floor(N / 2) + 1))) + list(tmp[math.floor(N / 2) - 1:N] * 2)
-            res = res + list(abs(np.fft.ifft(tmp)))
+                (math.floor(N / 2) + 1))) + list(tmp[math.floor(N / 2) - 1:N + 1] * 2)
+            res = res + list(abs(np.fft.ifft(tmp)))[0:N - 1]
             i = i + N2
 
         return np.array(res)
