@@ -5,6 +5,7 @@ from scipy import signal
 import global_var, settings
 from threads.nl import NoiseLib
 
+import matplotlib.pyplot as plt
 
 class ActiveNoiseControl(threading.Thread):
     def __init__(self, output_fs, input_fs, chirp_noise_length,
@@ -30,6 +31,7 @@ class ActiveNoiseControl(threading.Thread):
         self.flag2 = True
 
         while not self.exit_flag:
+
             # 1.从raw_input池中读取与chirp加noise等长的数据。该过程可能会被阻塞，直到池中放入了足够本次读取的数据
             current_input_frames = global_var.raw_input_pool.get(
                 int(self.input_fs * self.chirp_noise_length))
@@ -68,17 +70,16 @@ class ActiveNoiseControl(threading.Thread):
                 # Test
                 if self.flag1:
                     print("Save data for simulation")
-                    self._save_data(self.rfs1,"./waves/train_x.npy")
-                    self._save_data(self.ifs1,"./waves/train_y.npy")
+                    self._save_data(self.rfs1, "./waves/train_x.npy")
+                    self._save_data(self.ifs1, "./waves/train_y.npy")
                     self.flag1 = False
 
             # Test
             if global_var.run_time >= 20 and self.flag2:
                 print("Save data for eliminate")
-                self._save_data(self.rfs2,"./waves/test_x.npy")
-                self._save_data(self.ifs2,"./waves/test_y.npy")
+                self._save_data(self.rfs2, "./waves/test_x.npy")
+                self._save_data(self.ifs2, "./waves/test_y.npy")
                 self.flag2 = False
-
 
     def stop(self):
         self.exit_flag = True
@@ -89,63 +90,60 @@ class ActiveNoiseControl(threading.Thread):
         # frames：输入原始信号
         # chirp：用于解调原始信号的卷积信号
         # res：返回的卷积结果
-        # N1 = len(frames)
-        # N2 = len(chirp)
+        N1 = len(frames)
+        N2 = len(chirp)
 
-        # res = []
-        # i = 0
-        # while i < N1:
-        #     N = min(N2, N1 - i)
-        #     frames_freq = np.fft.fft(frames[i:i + N])
-        #     chirp_freq = np.fft.fft(chirp[0:N])
-        #     tmp = frames_freq * chirp_freq
-        #     tmp = np.zeros(
-        #         (math.floor(N / 2) + 1)) + tmp[math.floor(N / 2):N] * 2
-        #     res = res + abs(np.fft.ifft(tmp))
+        res = []
+        i = 0
+        while i < N1:
+            N = min(N2, N1 - i)
+            frames_freq = np.fft.fft(frames[i:i + N])
+            chirp_freq = np.fft.fft(chirp[0:N])
+            tmp = frames_freq * chirp_freq
+            tmp = list(np.zeros(
+                (math.floor(N / 2) + 1))) + list(tmp[math.floor(N / 2) - 1:N] * 2)
+            res = res + list(abs(np.fft.ifft(tmp)))
+            i = i + N2
 
-        #     i = i + N2
+        return np.array(res)
 
-        # return res
-        return np.array([])
 
     def find_max(self, frames):
         # 若Clip中有一个最大值点，则输出其下标。若有两个值大小差距在阈值(0.3)以内的最大值点，则输出其下标的中位点
         # frames：需要检测最大值点的输入声音片段
         # max_index：返回的最大值点下标
-        # first_max_index = 0
-        # for i in range(1, len(frames)):
-        #     if frames[i] > frames[first_max_index]:
-        #         first_max_index = i
+        first_max_index = 0
+        for i in range(1, len(frames)):
+            if frames[i] > frames[first_max_index]:
+                first_max_index = i
 
-        # second_max_index = 0
-        # for i in range(1, len(frames)):
-        #     if frames[i] > frames[second_max_index] and i != first_max_index:
-        #         second_max_index = i
+        second_max_index = 0
+        for i in range(1, len(frames)):
+            if frames[i] > frames[second_max_index] and i != first_max_index:
+                second_max_index = i
 
-        # threshold = 0.3
-        # if frames[first_max_index] / frames[second_max_index] <= 1 + threshold:
-        #     max_index = math.floor((first_max_index + second_max_index) / 2)
-        # else:
-        #     max_index = first_max_index
-
-        # return max_index
-        return 10
+        threshold = 0.3
+        if frames[first_max_index] / frames[second_max_index] <= 1 + threshold:
+            max_index = math.floor((first_max_index + second_max_index) / 2)
+        else:
+            max_index = first_max_index
+        return max_index
 
     def channel_simulation(self, reality_frames, ideal_frames):
         logging.info("System Clock-{}(s)-Channel simulation".format(
             round(global_var.run_time, 2)))
-        self.rfs1 = np.concatenate((self.rfs1,reality_frames))
-        self.ifs1 = np.concatenate((self.ifs1,ideal_frames))
+        self.rfs1 = np.concatenate((self.rfs1, reality_frames))
+        self.ifs1 = np.concatenate((self.ifs1, ideal_frames))
 
     def eliminate_noise(self, reality_frames, ideal_frames):
         logging.info("System Clock-{}(s)-Eliminate noise".format(
             round(global_var.run_time, 2)))
-        self.rfs2 = np.concatenate((self.rfs2,reality_frames))
-        self.ifs2 = np.concatenate((self.ifs2,ideal_frames))
+        self.rfs2 = np.concatenate((self.rfs2, reality_frames))
+        self.ifs2 = np.concatenate((self.ifs2, ideal_frames))
         return np.random.rand(1000)
 
     def _resample(self, frames, src_fs, dst_fs):
         return signal.resample(frames, int(frames.size / src_fs * dst_fs))
 
-    def _save_data(self,data,save_fillname):
-        np.save(save_fillname,data)
+    def _save_data(self, data, save_fillname):
+        np.save(save_fillname, data)
