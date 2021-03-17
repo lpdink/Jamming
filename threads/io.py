@@ -9,38 +9,38 @@ from utils.modulate import Modulate
 
 
 class InputOutPut():
-    def __init__(self, input_format, input_channel, input_fs, output_format,
+    def __init__(self, input_bit_depth, input_channel, input_fs, output_bit_depth,
                  output_channel, output_fs, frames_per_buffer):
-        self.input_format = input_format
-        self.input_channel = input_channel
-        self.input_fs = input_fs
-        self.output_format = output_format
-        self.output_channel = output_channel
-        self.output_fs = output_fs
-        self.frames_per_buffer = frames_per_buffer
+        InputOutPut.input_bit_depth = input_bit_depth
+        InputOutPut.input_channel = input_channel
+        InputOutPut.input_fs = input_fs
+        InputOutPut.output_bit_depth = output_bit_depth
+        InputOutPut.output_channel = output_channel
+        InputOutPut.output_fs = output_fs
+        InputOutPut.frames_per_buffer = frames_per_buffer
         self.run()
 
     def run(self):
         self.pa = pyaudio.PyAudio()
         try:
             self.stream = self.pa.open(
-                format=self.input_format,
-                channels=self.input_channel,
-                rate=self.input_fs,
+                format=self.pa.get_format_from_width(InputOutPut.input_bit_depth//8),
+                channels=InputOutPut.input_channel,
+                rate=InputOutPut.input_fs,
                 input=True,
                 output=False,
-                frames_per_buffer=self.frames_per_buffer,
+                frames_per_buffer=InputOutPut.frames_per_buffer,
                 stream_callback=InputOutPut.read_audio)
         except:
             logging.warning("No input device detected!")
         try:
             self.stream = self.pa.open(
-                format=self.output_format,
-                channels=self.output_channel,
-                rate=self.output_fs,
+                format=self.pa.get_format_from_width(InputOutPut.output_bit_depth//8),
+                channels=InputOutPut.output_channel,
+                rate=InputOutPut.output_fs,
                 input=False,
                 output=True,
-                frames_per_buffer=self.frames_per_buffer,
+                frames_per_buffer=InputOutPut.frames_per_buffer,
                 stream_callback=InputOutPut.write_audio)
         except:
             logging.warning("No output device detected!")
@@ -48,25 +48,6 @@ class InputOutPut():
         self.stream.start_stream()
 
     def stop(self):
-        # y = np.array([])
-        # for i in range(10):
-        #     y = np.append(y, NoiseLib.get_noise_clip(10000),axis=0)
-        # plt.plot(y)
-        # plt.show()
-        # noise_clip = InputOutput.decode_single_channel(
-        #     NoiseLib.get_wave_bytes_buffer(0))
-
-        # noise_clip = Modulate.am_modulate_single_channel(noise_clip)
-        # out_data = InputOutput.encode_single_channel(noise_clip)
-        # import wave
-        # wf1 = wave.open(r".\waves\modulated\yes_no_left.wav", "wb")
-        # # wf2 = wave.open(r".\waves\modulated\yes_no_right.wav","wb")
-
-        # wf1.setnchannels(1)
-        # wf1.setsampwidth(3)
-        # wf1.setframerate(8000)
-        # wf1.writeframes(out_data)
-
         # 关闭时可能超时，所以使用try
         try:
             self.stream.stop_stream()
@@ -78,9 +59,12 @@ class InputOutPut():
     @staticmethod
     def read_audio(in_data, frame_count, time_info, status):
         # 1.将bytes流输入转换为[-1,1]的浮点数一维数组
-        raw_input_frames = Codec.decode_bytes_to_audio(in_data)
+        raw_input_frames = Codec.decode_bytes_to_audio(
+            in_data, InputOutPut.input_channel, InputOutPut.input_bit_depth)
         # 2.数据存入raw_input池，此过程不会被阻塞
         global_var.raw_input_pool.put(raw_input_frames)
+        # 3.更新系统时间
+        global_var.run_time = global_var.run_time + InputOutPut.frames_per_buffer / InputOutPut.input_fs
 
         return (None, pyaudio.paContinue)
 
@@ -102,6 +86,8 @@ class InputOutPut():
         modulated_output_frames = Modulate.am_modulate(raw_output_frames)
 
         # 4.将[-1,1]的浮点数一维数组转换为bytes流输出
-        out_data = Codec.encode_audio_to_bytes(modulated_output_frames)
+        out_data = Codec.encode_audio_to_bytes(modulated_output_frames,
+                                               InputOutPut.output_channel,
+                                               InputOutPut.output_bit_depth)
 
         return (out_data, pyaudio.paContinue)

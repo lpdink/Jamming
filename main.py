@@ -1,4 +1,4 @@
-import logging, sys, time, os, datetime
+import logging, sys, time, os, datetime, math
 import pyaudio
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,30 +18,24 @@ def run():
     logging.info("Start jamming programmer")
     nl_thread = NoiseLib(settings.OUT_FS, settings.NOISE_LENGTH,
                          settings.CHIRP_LENGTH)
-    io_thread = InputOutPut(settings.INPUT_FORMAT, settings.INPUT_CHANNEL,
-                            settings.IN_FS, settings.OUTPUT_FORMAT,
+    io_thread = InputOutPut(settings.INPUT_BIT_DEPTH, settings.INPUT_CHANNEL,
+                            settings.IN_FS, settings.OUTPUT_BIT_DEPTH,
                             settings.OUTPUT_CHANNEL, settings.OUT_FS,
                             settings.FRAMES_PER_BUFFER)
     anc_thread = ActiveNoiseControl(
-        np.floor(settings.OUT_FS *
-                 (settings.CHIRP_LENGTH + settings.NOISE_LENGTH)),
+        settings.OUT_FS, settings.IN_FS,
+        settings.CHIRP_LENGTH + settings.NOISE_LENGTH,
         settings.SIMULATION_LENGTH)
     kws_thread = KeywordSpotting(
         settings.IN_FS, settings.OUT_FS,
-        np.foor(settings.OUT_FS * settings.MUTE_PERIOD_LENGTH))
-
-    try:
-        plt.ion()
-        plt.figure(1)
-        while True:
-            show_data()
-    except:
-        # 停止程序
-        logging.info("Stop jamming programmer")
-        kws_thread.stop()
-        anc_thread.stop()
-        io_thread.stop()
-        nl_thread.stop()
+        np.floor(settings.OUT_FS * settings.MUTE_PERIOD_LENGTH),
+        settings.KWS_FRAME_LENGTH)
+    input("")
+    logging.info("Stop jamming programmer")
+    nl_thread.stop()
+    io_thread.stop()
+    anc_thread.stop()
+    kws_thread.stop()
 
 
 def config_logging():
