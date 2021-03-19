@@ -44,7 +44,7 @@ class Modulate():
             re = re_left + re_right
             return cls.amplitude * re / 2
         else:
-            return cls.amplitude * re_left, cls.amplitude * re_right
+            return (cls.amplitude * re_left, cls.amplitude * re_right)
 
     @classmethod
     def pm_modulate(cls, audio_clip):
@@ -73,7 +73,7 @@ class Modulate():
         # 右声道部分信号生成
         re_right = np.sin(2 * np.pi * cls.f_s * t)
 
-        return cls.amplitude * re_left, cls.amplitude * re_right
+        return (cls.amplitude * re_left, cls.amplitude * re_right)
 
     @classmethod
     def convolve(cls, x):
