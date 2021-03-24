@@ -183,12 +183,12 @@ class Modulate():
             if new_ans > ans:
                 ans = new_ans
                 ans_points = nxt_points
-            delta = new_ans - now_ans
+            delta = now_ans - new_ans
             if delta > 0 or math.exp(delta / T) * 100000 > random.randint(0, 100000):
                 now_points = nxt_points.copy()
             # print(now_points)
             T *= d
-        # print(ans_points)
+        print(ans_points)
         tmp = cls.split(f_sequence, ans_points)
         tmp = cls.frequency_to_time(tmp)
         return tmp
