@@ -19,7 +19,7 @@ class NoiseLib(threading.Thread):
         self.chirp_length = chirp_length
         self.f_lower_bound = 100  # 噪声频率下界
         self.f_upper_bound = 1000  # 噪声频率上界
-        self.num_of_base = 10  # 噪声基底个数
+        self.num_of_base = 30  # 噪声基底个数
         self.f1 = 100
         self.f2 = 1e4
         self.exit_flag = False  # 线程退出标志
@@ -90,7 +90,6 @@ class NoiseLib(threading.Thread):
         # 根据文件名读取音频文件
         try:
             wf = wave.open(filename, "rb")
-            print(wf.getparams())
             nchannels = wf.getparams().nchannels
             sampwidth = wf.getparams().sampwidth
             framerate = wf.getparams().framerate

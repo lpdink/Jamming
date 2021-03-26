@@ -1,3 +1,3 @@
-from tests.test_npy import *
+from tests.test_pyaudio import *
 
 run()

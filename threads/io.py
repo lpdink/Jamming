@@ -9,8 +9,9 @@ from utils.modulate import Modulate
 
 
 class InputOutPut():
-    def __init__(self, input_bit_depth, input_channel, input_fs, output_bit_depth,
-                 output_channel, output_fs, frames_per_buffer):
+    def __init__(self, input_bit_depth, input_channel, input_fs,
+                 output_bit_depth, output_channel, output_fs,
+                 frames_per_buffer):
         InputOutPut.input_bit_depth = input_bit_depth
         InputOutPut.input_channel = input_channel
         InputOutPut.input_fs = input_fs
@@ -24,7 +25,8 @@ class InputOutPut():
         self.pa = pyaudio.PyAudio()
         try:
             self.stream = self.pa.open(
-                format=self.pa.get_format_from_width(InputOutPut.input_bit_depth//8),
+                format=self.pa.get_format_from_width(
+                    InputOutPut.input_bit_depth // 8),
                 channels=InputOutPut.input_channel,
                 rate=InputOutPut.input_fs,
                 input=True,
@@ -35,7 +37,8 @@ class InputOutPut():
             logging.warning("No input device detected!")
         try:
             self.stream = self.pa.open(
-                format=self.pa.get_format_from_width(InputOutPut.output_bit_depth//8),
+                format=self.pa.get_format_from_width(
+                    InputOutPut.output_bit_depth // 8),
                 channels=InputOutPut.output_channel,
                 rate=InputOutPut.output_fs,
                 input=False,
@@ -83,7 +86,8 @@ class InputOutPut():
             raw_output_frames = global_var.noise_pool.get(frame_count)
 
         # 3.调制
-        modulated_output_frames = Modulate.am_modulate(raw_output_frames)
+        modulated_output_frames = Modulate.am_modulate(
+            raw_output_frames, InputOutPut.output_channel)
 
         # 4.将[-1,1]的浮点数一维数组转换为bytes流输出
         out_data = Codec.encode_audio_to_bytes(modulated_output_frames,

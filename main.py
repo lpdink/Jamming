@@ -30,7 +30,7 @@ def run():
         settings.IN_FS, settings.OUT_FS,
         np.floor(settings.OUT_FS * settings.MUTE_PERIOD_LENGTH),
         settings.KWS_FRAME_LENGTH)
-    input("")
+    input("Press any key to exit>>>")
     logging.info("Stop jamming programmer")
     nl_thread.stop()
     io_thread.stop()
