@@ -1,21 +1,21 @@
-import threading, logging
+import logging
 import numpy as np
-from threading import Condition
+from threading import Condition, Lock
 
 
 class PoolBase(object):
     def __init__(self):
-        self.datas = []
+        self.datas = np.array([])
 
     # 获取全部数据
     def get_all(self):
         re = self.datas.copy()
-        del self.datas[:]
+        self.datas = np.array([])
         return re
 
     # 清空pool
     def clear(self):
-        del self.datas[:]
+        self.datas = np.array([])
 
     # 判断pool是否为空
     def is_empty(self):
@@ -32,13 +32,18 @@ class PoolBase(object):
 class PoolBlockGet(PoolBase):
     def __init__(self, needed_count):
         super(PoolBlockGet, self).__init__()
-        self.condition = threading.Condition()  # 用于实现线程通信
+        self.condition = Condition()  # 用于实现线程通信
         self.needed_count = needed_count  # 读取所需数据数量
 
     # 将数据放入池子。若池子中有足够数据，则释放被阻塞线程
     def put(self, data):
+        if not isinstance(data, np.ndarray):
+            raise TypeError("Input data must be ndarray!")
+        if data.ndim != 1:
+            raise ValueError("Input data must be 1D!")
+
         self.condition.acquire()
-        self.datas.append(data)
+        self.datas = np.concatenate((self.datas, data))
         if len(self.datas) >= self.needed_count:
             self.condition.notify_all()
         self.condition.release()
@@ -55,7 +60,7 @@ class PoolBlockGet(PoolBase):
             self.needed_count = count
             self.condition.wait()
         re = self.datas[:count].copy()
-        del self.datas[:count]
+        self.datas = np.delete(self.datas, range(0, count))
         self.condition.release()
 
         return re
@@ -69,15 +74,20 @@ class PoolBlockGet(PoolBase):
 class PoolBlockPut(PoolBase):
     def __init__(self, needed_count):
         super(PoolBlockPut, self).__init__()
-        self.condition = threading.Condition()  # 用于实现线程通信
+        self.condition = Condition()  # 用于实现线程通信
         self.needed_count = needed_count  # 下一次读取所需数据数量
 
     # 若池子中有足够数据，则阻塞当前线程，否则将数据放入池子
     def put(self, data):
+        if not isinstance(data, np.ndarray):
+            raise TypeError("Input data must be ndarray!")
+        if data.ndim != 1:
+            raise ValueError("Input data must be 1D!")
+
         self.condition.acquire()
         if len(self.datas) >= self.needed_count:
             self.condition.wait()
-        self.datas.append(data)
+        self.datas = np.concatenate((self.datas, data))
         self.condition.release()
 
     # 非循环读取池子中数据。若取后剩余数据小于所需数量，则释放被阻塞线程
@@ -93,10 +103,10 @@ class PoolBlockPut(PoolBase):
 
         self.condition.acquire()
         re = self.datas[:count].copy()
-        del self.datas[:count]
+        self.datas = np.delete(self.datas, range(0, count))
         self.needed_count = count
         if len(self.datas
-               ) < self.needed_count:  # 取后剩余数据不够下一次读取，释放被阻塞线程，让其继续生产数据
+               ) < 4*self.needed_count:  # 取后剩余数据不够下一次读取，释放被阻塞线程，让其继续生产数据
             self.condition.notify_all()
         self.condition.release()
 
@@ -111,12 +121,17 @@ class PoolBlockPut(PoolBase):
 class PoolNoBlock(PoolBase):
     def __init__(self):
         super(PoolNoBlock, self).__init__()
-        self.rw_mutex = threading.Lock()  # 读写互斥锁
+        self.rw_mutex = Lock()  # 读写互斥锁
 
     # 将数据放入池子
     def put(self, data):
+        if not isinstance(data, np.ndarray):
+            raise TypeError("Input data must be ndarray!")
+        if data.ndim != 1:
+            raise ValueError("Input data must be 1D!")
+
         self.rw_mutex.acquire()
-        self.datas.append(data)
+        self.datas = np.concatenate((self.datas, data))
         self.rw_mutex.release()
 
     # 非循环读取池子中数据。若frame_count大于池中数据重量，则读取所有数据
@@ -130,7 +145,7 @@ class PoolNoBlock(PoolBase):
         if count > len(self.datas):
             count = len(self.datas)
         re = self.datas[:count].copy()
-        del self.datas[:count]
+        self.datas = np.delete(self.datas, range(0, count))
         self.rw_mutex.release()
 
         return re

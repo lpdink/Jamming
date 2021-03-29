@@ -1,60 +1,55 @@
-import threading, time, math, logging, global_var
+import math, logging, global_var
 import numpy as np
-from scipy import signal
-
-import global_var, settings
-from threads.nl import NoiseLib
-
-import matplotlib.pyplot as plt
 
 
 class ActiveNoiseControl():
-    def __init__(self, out_fs, in_fs, chirp_noise_length,
-                 simulation_length):
-        self.output_fs = out_fs
-        self.input_fs = in_fs
-        self.chirp_noise_length = chirp_noise_length
-        self.simulation_length = simulation_length
-        self.H = np.array([])
+    H = np.array([])
 
-    def anc(self, raw_input_frames: bytes) -> np.ndarray:
-        # Test
-        # self.c1 = 0
-        # self.c2 = 0
-        # self.tmp = np.array([])
-
+    @classmethod
+    def location(cls, raw_input_frames, chirp_frames):
         # 1.包络检测，并找到最大值点下标。用于同步
-        max_index = self.find_max(
-            self.envelope(
-                raw_input_frames,
-                self._resample(NoiseLib.get_down_chirp(), self.output_fs,
-                               self.input_fs)))
+        max_index = cls._find_max(cls._envelope(raw_input_frames,
+                                                chirp_frames))
 
         # 2.从last_input池中读取保存的上轮右半数据
-        last_input_frames = global_var.history_queue.get_all()
+        last_input_frames = global_var.last_input_pool.get_all()
 
         # 3.将本轮数据的右半保存至last_input池
         global_var.last_input_pool.put(raw_input_frames[max_index:])
 
         # 4.拼接上轮右半数据核本轮左半数据
         joined_input_frames = np.concatenate(
-            (last_input_frames, raw_input_frames[0:max_index]))
+            (last_input_frames, raw_input_frames[:max_index]))
 
-        # 5.如果系统刚启动，则进行信道估计，更新self.H
-        if global_var.run_time <= self.simulation_length:
-            self.channel_simulation(
-                joined_input_frames,
-                self._resample(NoiseLib.get_chirp_noise(), self.output_fs,
-                               self.input_fs))
-            return None
-        # 6.如果已经完成信道估计，则使用self.H核和噪声库噪声来进行噪声消除
-        else:
-            return self.eliminate_noise(
-                joined_input_frames,
-                self._resample(NoiseLib.get_chirp_noise(), self.output_fs,
-                               self.input_fs))
+        return joined_input_frames
 
-    def envelope(self, frames, chirp):
+    @classmethod
+    def channel_simulation(cls, reality_frames, ideal_frames):
+        pass
+        # logging.info("System Clock-{}(s)-Channel simulation".format(
+        #     round(global_var.run_time, 2)))
+        # print(len(reality_frames), len(ideal_frames))
+        # cls.tmp = np.concatenate((cls.tmp,ideal_frames))
+        # cls._save_data(reality_frames,
+        #                 "./tests/saved/train_x{}.npy".format(cls.c1))
+        # cls._save_data(ideal_frames,
+        #                 "./tests/saved/train_y{}.npy".format(cls.c1))
+        # cls.c1 += 1
+
+    @classmethod
+    def eliminate_noise(cls, reality_frames, ideal_frames):
+        # logging.info("System Clock-{}(s)-Eliminate noise".format(
+        #     round(global_var.run_time, 2)))
+        # print(len(reality_frames), len(ideal_frames))
+        # cls._save_data(reality_frames,
+        #                 "./tests/saved/test_x{}.npy".format(cls.c2))
+        # cls._save_data(ideal_frames,
+        #                 "./tests/saved/test_y{}.npy".format(cls.c2))
+        # cls.c2 += 1
+        return reality_frames
+
+    @classmethod
+    def _envelope(cls, frames, chirp):
         # 包络检测模块。会将frames分段与chirp信号进行卷积
         # frames：输入原始信号
         # chirp：用于解调原始信号的卷积信号
@@ -76,7 +71,8 @@ class ActiveNoiseControl():
 
         return np.array(res)
 
-    def find_max(self, frames):
+    @classmethod
+    def _find_max(cls, frames):
         # 若Clip中有一个最大值点，则输出其下标。若有两个值大小差距在阈值(0.3)以内的最大值点，则输出其下标的中位点
         # frames：需要检测最大值点的输入声音片段
         # max_index：返回的最大值点下标
@@ -97,30 +93,6 @@ class ActiveNoiseControl():
             max_index = first_max_index
         return max_index
 
-    def channel_simulation(self, reality_frames, ideal_frames):
-        logging.info("System Clock-{}(s)-Channel simulation".format(
-            round(global_var.run_time, 2)))
-        print(len(reality_frames), len(ideal_frames))
-        # self.tmp = np.concatenate((self.tmp,ideal_frames))
-        # self._save_data(reality_frames,
-        #                 "./tests/saved/train_x{}.npy".format(self.c1))
-        # self._save_data(ideal_frames,
-        #                 "./tests/saved/train_y{}.npy".format(self.c1))
-        # self.c1 += 1
-
-    def eliminate_noise(self, reality_frames, ideal_frames):
-        logging.info("System Clock-{}(s)-Eliminate noise".format(
-            round(global_var.run_time, 2)))
-        print(len(reality_frames), len(ideal_frames))
-        # self._save_data(reality_frames,
-        #                 "./tests/saved/test_x{}.npy".format(self.c2))
-        # self._save_data(ideal_frames,
-        #                 "./tests/saved/test_y{}.npy".format(self.c2))
-        # self.c2 += 1
-        return reality_frames
-
-    def _resample(self, frames, src_fs, dst_fs):
-        return signal.resample(frames, int(frames.size / src_fs * dst_fs))
-
-    def _save_data(self, data, save_fillname):
+    @classmethod
+    def _save_data(cls, data, save_fillname):
         np.save(save_fillname, data)

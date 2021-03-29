@@ -1,21 +1,22 @@
-import threading, logging, os
+import threading, os
 import numpy as np
 from pocketsphinx import DefaultConfig, Decoder, get_model_path, get_data_path
 from scipy import signal
 
 import global_var
+from utils.resampler import Resampler
 
 
 class KeywordSpotting(threading.Thread):
     def __init__(self, in_fs, out_fs, mute_period_length, kws_frame_length):
         threading.Thread.__init__(self)
+        # 初始化配置
         self.daemon = True
+        self.exit_flag = False
         self.in_fs = in_fs
         self.out_fs = out_fs
         self.mute_period_frames_count = int(in_fs * mute_period_length)
         self.kws_frames_count = int(in_fs * kws_frame_length)
-        self.exit_flag = False
-        # 初始化配置
         model_path = get_model_path()
         config = Decoder.default_config()
         config.set_string('-hmm', os.path.join(model_path, 'en-us'))  # 声学模型路径
@@ -38,18 +39,18 @@ class KeywordSpotting(threading.Thread):
                 self.kws_frames_count)
 
             # 2.如果keyword spotting检测出该数据段中存在关键字，则对该数据进行重采样，填充后，存入keyword池
-            if self.kws(processed_input_frames):
+            if self._kws(processed_input_frames):
                 global_var.keyword_pool.put(
-                    self.padding(
-                        self.resampling(processed_input_frames, self.in_fs,
-                                        self.out_fs), 0,
+                    self._padding(
+                        Resampler.resampling(processed_input_frames,
+                                             self.in_fs, self.out_fs), 0,
                         self.mute_period_frames_count))
 
     def stop(self):
         self.exit_flag = True
         self.join()
 
-    def kws(self, frames):
+    def _kws(self, frames):
         buf = frames.tobytes()
         if buf:
             self.decoder.process_raw(buf, False, False)
@@ -62,11 +63,7 @@ class KeywordSpotting(threading.Thread):
                 return True
         return False
 
-    def resampling(self, frames, current_fs, target_fs):
-        return signal.resample(frames, target_fs)
-        #return np.array([])
-
-    def padding(self, frames, padding_value, padding_num):
+    def _padding(self, frames, padding_value, padding_num):
         res = np.pad(frames, (0, padding_num),
                      'constant',
                      constant_values=(padding_value, padding_value))

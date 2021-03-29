@@ -1,39 +1,31 @@
 import math
 import random
-
 import numpy as np
-import logging
 
 import settings
 
 
 class Modulate():
     f_c = 40000  # 载波频率
-    f_s = 50000  # 载波频率
     amplitude = 1  # 归一化幅度
     channel_num = 7  # 声道数
 
-    belta = 1  # PM调制使用系数
-
     # AM调制
     @classmethod
-    def am_modulate(cls, audio_clip, channel):
+    def am_modulate(cls, audio_clip, channel,fs):
         # 检查
         if not isinstance(audio_clip, np.ndarray):
             raise TypeError("Input audio clip must be numpy array!")
-
         if audio_clip.dtype not in (np.float64, np.float32, np.float16):
             raise TypeError("Input audio clip must be float numpy!")
-
         if audio_clip.ndim != 1:
             raise ValueError("Input message must be 1D!")
-
         if channel not in (1, 2):
             raise ValueError("Input channel must be 1 or 2!")
 
         # 生成载波信号
         t = np.linspace(0,
-                        audio_clip.size / settings.OUT_FS,
+                        audio_clip.size / fs,
                         num=audio_clip.size)
         carry = np.sin(2 * np.pi * cls.f_c * t)
 
@@ -49,35 +41,6 @@ class Modulate():
             return cls.amplitude * re / 2
         else:
             return (cls.amplitude * re_left, cls.amplitude * re_right)
-
-    @classmethod
-    def pm_modulate(cls, audio_clip):
-        # 检查
-        if not isinstance(audio_clip, np.ndarray):
-            raise TypeError("Input audio clip must be numpy array!")
-
-        if audio_clip.dtype not in (np.float64, np.float32, np.float16):
-            raise TypeError("Input audio clip must be float numpy!")
-
-        if audio_clip.ndim != 1:
-            raise ValueError("Input message must be 1D!")
-
-        if settings.OUTPUT_CHANNEL != 2:
-            raise ValueError("Input channel must be 2!")
-
-        # 生成时间序列
-        t = np.linspace(0,
-                        audio_clip.size / settings.OUT_FS,
-                        num=audio_clip.size)
-
-        # 左声道部分信号生成
-        re_left = np.sin(2 * np.pi * cls.f_c * t +
-                         cls.belta * np.cumsum(audio_clip))
-
-        # 右声道部分信号生成
-        re_right = np.sin(2 * np.pi * cls.f_s * t)
-
-        return (cls.amplitude * re_left, cls.amplitude * re_right)
 
     @classmethod
     def convolve(cls, x):
@@ -196,7 +159,6 @@ class Modulate():
 
     @classmethod
     def get_array(cls, audio_clip):  # 调制并切分声波
-
         # 检查
         if not isinstance(audio_clip, np.ndarray):
             raise TypeError("Input audio clip must be numpy array!")
@@ -204,12 +166,10 @@ class Modulate():
             raise TypeError("Input audio clip must be float numpy!")
         if audio_clip.ndim != 1:
             raise ValueError("Input message must be 1D!")
-        if settings.OUTPUT_CHANNEL not in (1, 2):
-            raise ValueError("Input channel must be 1 or 2!")
 
         # 产生载波
         size = audio_clip.size
-        t = np.linspace(0, size / settings.OUT_FS, num=size)
+        t = np.linspace(0, size // settings.OUT_FS, num=size)
         carry = np.sin(2 * np.pi * cls.f_c * t)
 
         # 切割音频

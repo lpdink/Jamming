@@ -1,5 +1,4 @@
-import logging
-import pyaudio
+import pyaudio, logging
 import numpy as np
 
 
@@ -11,7 +10,6 @@ class Codec():
         if not isinstance(bytes_buffer, bytes):
             logging.error("Input buffer must be bytes!")
             return bytes_buffer
-
         if channel not in (1, 2):
             raise ValueError("Input channel must be 1 or 2!")
 

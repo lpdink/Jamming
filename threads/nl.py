@@ -1,12 +1,9 @@
-import threading, time, os, logging, wave, math
-import pyaudio
+import threading, wave, math
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy import signal
 
-import global_var, settings
+import global_var
 from utils.codec import Codec
-from utils.modulate import Modulate
+from utils.resampler import Resampler
 
 
 class NoiseLib(threading.Thread):
@@ -14,6 +11,7 @@ class NoiseLib(threading.Thread):
         threading.Thread.__init__(self)
         # 配置噪声库
         self.daemon = True
+        self.exit_flag = False  # 线程退出标志
         self.out_fs = out_fs
         self.noise_length = noise_length
         self.chirp_length = chirp_length
@@ -22,23 +20,18 @@ class NoiseLib(threading.Thread):
         self.num_of_base = 30  # 噪声基底个数
         self.f1 = 100
         self.f2 = 1e4
-        self.exit_flag = False  # 线程退出标志
-        NoiseLib.up_chirp_frames, NoiseLib.down_chirp_frames = self.generate_chirp(
-        )
-        NoiseLib.noise_frames = np.array([])
-        # 生成chirp信号
-        self.generate_chirp()
-        # 读取音频文件
-        self.load_wave("./waves/raw/no_yes.wav")
+        self.up_chirp_frames, self.down_chirp_frames = self._generate_chirp()
+        self.noise_frames = np.array([])
+        # self._load_wave("./waves/raw/no_yes.wav")
         # 开始运行线程
         self.start()
 
     def run(self):
         while not self.exit_flag:
             # 1.重新生成随机噪声
-            NoiseLib.noise_frames = self.generate_noise()
+            self.noise_frames = self._generate_noise()
             chirp_noise_frames = np.concatenate(
-                (NoiseLib.up_chirp_frames, NoiseLib.noise_frames))
+                (self.up_chirp_frames, self.noise_frames))
 
             # 2.chirp和噪声存入noise池。该过程可能会被阻塞，直到池中数据不够下一次由另外一线程读取
             global_var.noise_pool.put(chirp_noise_frames)
@@ -49,7 +42,7 @@ class NoiseLib(threading.Thread):
         self.join()
 
     # 每次生成不同噪声库噪声
-    def generate_noise(self):
+    def _generate_noise(self):
         noise_frames_count = math.floor(self.out_fs * self.noise_length)
         random_factor = np.random.rand(self.num_of_base)
         # print(random_factor)
@@ -65,7 +58,7 @@ class NoiseLib(threading.Thread):
 
         return random_noise
 
-    def generate_chirp(self):
+    def _generate_chirp(self):
         t = np.linspace(0,
                         self.chirp_length,
                         num=math.floor(self.out_fs * self.chirp_length))
@@ -77,16 +70,7 @@ class NoiseLib(threading.Thread):
                              (self.f2 - self.f1) / self.chirp_length) * t**2)
         return up_chirp, down_chirp
 
-    @classmethod
-    def get_chirp_noise(cls):
-        return np.concatenate(
-            (NoiseLib.up_chirp_frames, NoiseLib.noise_frames))
-
-    @classmethod
-    def get_down_chirp(cls):
-        return NoiseLib.down_chirp_frames
-
-    def load_wave(self, filename):
+    def _load_wave(self, filename):
         # 根据文件名读取音频文件
         try:
             wf = wave.open(filename, "rb")
@@ -97,48 +81,18 @@ class NoiseLib(threading.Thread):
             bytes_buffer = wf.readframes(nframes)  # 一次性读取所有frame
 
             audio_clip = Codec.decode_bytes_to_audio(bytes_buffer, nchannels,
-                                                     sampwidth*8)
+                                                     sampwidth * 8)
 
-            audio_clip = signal.resample(
-                audio_clip, int(self.out_fs / framerate * nframes))
+            audio_clip = Resampler.resample(audio_clip, framerate, self.out_fs)
 
             self.test_wave = [filename, 2, sampwidth, self.out_fs, audio_clip]
         except:
             raise TypeError("Can't read wave file!")
 
-    # def save_wave(self):
-    #     modulated_wave_dir = os.path.join(".\waves", "modulated")
-    #     for raw_wave in self.raw_waves:
-    #         filename = raw_wave[0]
-    #         nchannels = raw_wave[1]
-    #         sampwidth = raw_wave[2]
-    #         framerate = raw_wave[3]
-    #         audio_clip = raw_wave[4]
-    #         bytes_buffer = Codec.encode_audio_to_bytes(audio_clip, 2,
-    #                                                    pyaudio.paInt16)
+    def get_chirp_noise(self, dst_fs):
+        return Resampler.resample(
+            np.concatenate((self.up_chirp_frames, self.noise_frames)),
+            self.out_fs, dst_fs)
 
-    #         wf = wave.open(os.path.join(modulated_wave_dir, filename), "wb")
-    #         wf.setnchannels(nchannels)
-    #         wf.setsampwidth(sampwidth)
-    #         wf.setframerate(framerate)
-    #         wf.writeframes(bytes_buffer)
-
-    #         wf.close()
-
-    # print(r"\x"+r" \x".join(format(x,'02x') for x in NoiseLib.raw_noise_data[0][7200:7220]))  # 原始十六进制表示
-
-    # # 获取bytes类型的声音信号
-    # @classmethod
-    # def get_wave_bytes_buffer(cls, index, frame_count=-1):
-    #     if frame_count == -1:
-    #         return cls.raw_noise_data[index][-1]
-
-    #     read_index, sampwidth, nframes, data = cls.raw_noise_data[index]
-    #     start_index = read_index
-    #     end_index = read_index + frame_count * sampwidth
-    #     if end_index >= nframes:
-    #         re = data[start_index:-1] + data[0:end_index % nframes]
-    #     else:
-    #         re = data[start_index:end_index]
-    #     cls.raw_noise_data[index][0] = end_index % nframes
-    #     return re
+    def get_down_chirp(self, dst_fs):
+        return Resampler.resample(self.down_chirp_frames, self.out_fs, dst_fs)
