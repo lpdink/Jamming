@@ -2,34 +2,35 @@ import logging, sys, os
 import numpy as np
 
 import settings
-# from threads.io import PyaudioInput, PyaudioOutput
-from threads.io2 import SoundDeviceInput, SoundDeviceOutput
+from threads.io import PyaudioInput, PyaudioOutput
+# from threads.io2 import SoundDeviceInput, SoundDeviceOutput
 from threads.kws import KeywordSpotting
 from threads.nl import NoiseLib
 
 
 def run():
     # 启动程序
+    # os.close(sys.stderr.fileno())
     _config_logging()
     logging.info("Start jamming programmer")
     nl_thread = NoiseLib(settings.OUT_FS, settings.NOISE_LENGTH,
                          settings.CHIRP_LENGTH)
-    input_thread = SoundDeviceInput(
+    input_thread = PyaudioInput(
         nl_thread, settings.IN_FS, settings.IN_CHANNEL, settings.IN_BIT_DEPTH,
         settings.CHIRP_LENGTH + settings.NOISE_LENGTH,
-        settings.SIMULATION_LENGTH)
-    output_thread = SoundDeviceOutput(settings.OUT_FS, settings.OUT_CHANNEL,
-                                      settings.OUT_BIT_DEPTH,
-                                      settings.FRAMES_PER_BUFFER,
-                                      settings.USB_CARD_KEYWORD)
-    kws_thread = KeywordSpotting(
-        settings.IN_FS, settings.OUT_FS,
-        np.floor(settings.OUT_FS * settings.MUTE_PERIOD_LENGTH),
-        settings.KWS_FRAME_LENGTH)
+        settings.SIMULATION_LENGTH,settings.IN_DEVICE_KEYWORD)
+    # output_thread = PyaudioOutput(settings.OUT_FS, settings.OUT_CHANNEL,
+    #                                   settings.OUT_BIT_DEPTH,
+    #                                   settings.FRAMES_PER_BUFFER,
+    #                                   settings.OUT_DEVICE_KEYWORD)
+    # kws_thread = KeywordSpotting(
+    #     settings.IN_FS, settings.OUT_FS,
+    #     np.floor(settings.OUT_FS * settings.MUTE_PERIOD_LENGTH),
+    #     settings.KWS_FRAME_LENGTH)
     input("")
     logging.info("Stop jamming programmer")
-    kws_thread.stop()
-    output_thread.stop()
+    # kws_thread.stop()
+    # output_thread.stop()
     input_thread.stop()
     nl_thread.stop()
 

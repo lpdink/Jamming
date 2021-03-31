@@ -73,7 +73,6 @@ class SoundDeviceOutput(threading.Thread):
         self.out_channels = out_channel
         self.out_bit_depth = out_bit_depth
         self.frames_per_buffer = frames_per_buffer
-        self.usb_card_keyword = usb_card_keyword
         params = {
             "samplerate": out_fs,
             "device": None,
@@ -82,7 +81,7 @@ class SoundDeviceOutput(threading.Thread):
         }
 
         # 为当前所有可用输出设备创建输出流
-        self.devices = OutputDeviceIterable(self.usb_card_keyword)
+        self.devices = OutputDeviceIterable(usb_card_keyword)
         self.streams = StreamsIterable()
         for index, info in self.devices:
             print(index, info["name"])

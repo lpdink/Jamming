@@ -92,7 +92,3 @@ class ActiveNoiseControl():
         else:
             max_index = first_max_index
         return max_index
-
-    @classmethod
-    def _save_data(cls, data, save_fillname):
-        np.save(save_fillname, data)

@@ -1,4 +1,6 @@
 import pyaudio, random, abc, threading
+import numpy as np
+from utils.codec import Codec
 
 
 class PyaudioInput(threading.Thread):
@@ -22,8 +24,16 @@ class PyaudioInput(threading.Thread):
 
     def run(self):
         self.stream.start_stream()
+        save_frames = np.array([])
         while not self.exit_flag:
-            self.stream.read(1024)  # 此过程会阻塞，直到有足够多的数据
+            data = self.stream.read(12000)  # 此过程会阻塞，直到有足够多的数据
+            # frames = np.frombuffer(data,dtype=np.int16)
+            frames = Codec.decode_bytes_to_audio(data, 1, 16)
+            save_frames = np.concatenate((save_frames, frames))
+            if save_frames.size > 480000:
+                np.save("./tests/save_frames.npy", save_frames)
+                print("**")
+                break
         self.stream.stop_stream()
         self.stream.close()
 
@@ -164,11 +174,17 @@ class StreamsIterator():
         return stream
 
 
+def run():
+    pi = PyaudioInput()
+    input("Press any key to exit>>>")
+    pi.stop()
+
+
 if __name__ == "__main__":
-    # pi = PyaudioInput()
-    po = PyaudioOutput()
+    pi = PyaudioInput()
+    # po = PyaudioOutput()
 
     input("Press any key to exit>>>")
 
-    # pi.stop()
-    po.stop()
+    pi.stop()
+    # po.stop()

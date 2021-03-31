@@ -1,5 +1,6 @@
-import abc, threading, random
+import abc, threading, random, logging
 import pyaudio
+import numpy as np
 
 import global_var
 from utils.anc import ActiveNoiseControl
@@ -9,7 +10,7 @@ from utils.modulate import Modulate
 
 class PyaudioInput(threading.Thread):
     def __init__(self, nosie_lib, in_fs, in_channel, in_bit_depth,
-                 chirp_nosie_length, simulation_length):
+                 chirp_nosie_length, simulation_length, in_device_keyword):
         threading.Thread.__init__(self)
         # 初始化配置
         self.daemon = True
@@ -26,11 +27,19 @@ class PyaudioInput(threading.Thread):
             "channels": self.in_channels,
             "format": self.p.get_format_from_width(in_bit_depth // 8),
             "input": True,
+            "input_device_index": None,
             "start": False
         }
 
         # 为输入设备创建输入流
-        self.stream = self.p.open(**params)
+        self.devices = InputDeviceIterable(device_keyword=in_device_keyword)
+        self.stream = None
+        for index, info in self.devices:
+            logging.info("Open input device [index:{}] [name:{}]".format(
+                index, info))
+            params["input_device_index"] = index
+            self.stream = self.p.open(**params)
+            break
         # 开始线程
         self.start()
 
@@ -60,6 +69,8 @@ class PyaudioInput(threading.Thread):
 
             # 5.更新系统时间
             global_var.run_time += self.chirp_nosie_frames_count / self.in_fs
+            print(global_var.run_time)
+
         self.stream.stop_stream()
         self.stream.close()
 
@@ -68,9 +79,13 @@ class PyaudioInput(threading.Thread):
         self.p.terminate()
         self.join()
 
+    def _save_data(self, data, save_fillname):
+        np.save(save_fillname, data)
+
 
 class PyaudioOutput(threading.Thread):
-    def __init__(self, out_fs, out_channel, out_bit_depth, frames_per_buffer):
+    def __init__(self, out_fs, out_channel, out_bit_depth, frames_per_buffer,
+                 usb_card_keyword):
         threading.Thread.__init__(self)
         # 初始化配置
         self.daemon = True
@@ -90,11 +105,12 @@ class PyaudioOutput(threading.Thread):
         }
 
         # 为当前所有可用输出设备创建输出流
-        self.devices = OutputDeviceIterable()
+        self.devices = OutputDeviceIterable(device_keyword=usb_card_keyword)
         self.streams = StreamsIterable()
-        for device_index in self.devices:
-            print(device_index)
-            params["output_device_index"] = device_index
+        for index, info in self.devices:
+            logging.info("Open output device [index:{}] [name:{}]".format(
+                index, info))
+            params["output_device_index"] = index
             self.streams.append(self.p.open(**params))
         self.start()
 
@@ -124,7 +140,7 @@ class PyaudioOutput(threading.Thread):
             for i, stream in enumerate(self.streams):
                 # data = bytes(
                 #     int(random.random() * 256)
-                    # for _ in range(len(raw_output_frames)))
+                # for _ in range(len(raw_output_frames)))
                 stream.write(out_data)  # 此过程会阻塞，直到填入数据被全部消耗
         for stream in self.streams:
             stream.stop_stream()
@@ -138,42 +154,18 @@ class PyaudioOutput(threading.Thread):
 
 class DeviceIterable(abc.ABC):
     def __init__(self):
-        self.devices_info = []
+        self.index_infoss = []
 
     @abc.abstractmethod
     def _get_devices_by_keyword(self, device_keyword, host_api):
         pass
 
 
-class OutputDeviceIterable(DeviceIterable):
-    def __init__(self, device_keyword="Realtek USB2.0 Audio", host_api=1):
-        super(OutputDeviceIterable, self).__init__()
-        self._get_devices_by_keyword(device_keyword, host_api)
-        print("Output", self.devices_info)
-
-    def _get_devices_by_keyword(self, device_keyword, host_api):
-        p = pyaudio.PyAudio()
-        for i in range(p.get_device_count()):
-            dev_info = p.get_device_info_by_index(i)
-            if device_keyword not in dev_info["name"]:
-                continue
-            if dev_info["maxOutputChannels"] > 0 and dev_info[
-                    "hostApi"] == host_api:
-                self.devices_info.append((dev_info["name"], dev_info["index"]))
-        del self.devices_info[-1]
-        p.terminate()
-
-    # 迭代对象最简单写法，无需迭代器。index自动从0开始递增
-    def __getitem__(self, index):
-        return self.devices_info[index][-1]
-
-
 class InputDeviceIterable(DeviceIterable):
-    def __init__(self, device_keyword="Realtek(R) Audio", host_api=1):
+    def __init__(self, device_keyword="Realtek(R) Audio", host_api=0):
         super(InputDeviceIterable, self).__init__(
         )  # 继承父类构造方法，也可写成DeviceIterable.__init__(self,*args)
         self._get_devices_by_keyword(device_keyword, host_api)
-        print("Input", self.devices_info)
 
     def _get_devices_by_keyword(self, device_keyword, host_api):
         p = pyaudio.PyAudio()
@@ -183,15 +175,36 @@ class InputDeviceIterable(DeviceIterable):
                 continue
             if dev_info["maxInputChannels"] > 0 and dev_info[
                     "hostApi"] == host_api:
-                self.devices_info.append(dev_info["name"], dev_info["index"])
+                self.index_infoss.append((dev_info["index"], dev_info["name"]))
         p.terminate()
 
     # __iter__要求必须返回迭代器。带有yield，当作生成器，即迭代器。
     def __iter__(self):
         index = 0
-        for device_info in self.devices_info:
-            yield device_info[-1]
+        for device_info in self.index_infoss:
+            yield device_info
             index += 1
+
+
+class OutputDeviceIterable(DeviceIterable):
+    def __init__(self, device_keyword="Realtek(R) Audio", host_api=0):
+        super(OutputDeviceIterable, self).__init__()
+        self._get_devices_by_keyword(device_keyword, host_api)
+
+    def _get_devices_by_keyword(self, device_keyword, host_api):
+        p = pyaudio.PyAudio()
+        for i in range(p.get_device_count()):
+            dev_info = p.get_device_info_by_index(i)
+            if device_keyword not in dev_info["name"]:
+                continue
+            if dev_info["maxOutputChannels"] > 0 and dev_info[
+                    "hostApi"] == host_api:
+                self.index_infoss.append((dev_info["index"], dev_info["name"]))
+        p.terminate()
+
+    # 迭代对象最简单写法，无需迭代器。index自动从0开始递增
+    def __getitem__(self, index):
+        return self.index_infoss[index]
 
 
 class StreamsIterable():

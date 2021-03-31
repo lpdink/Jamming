@@ -99,7 +99,7 @@ class PoolBlockPut(PoolBase):
 
         if count > len(self.datas):
             count = len(self.datas)
-            logging.warning("IO is going to be close!")
+            # logging.warning("IO is going to be close!")
 
         self.condition.acquire()
         re = self.datas[:count].copy()
